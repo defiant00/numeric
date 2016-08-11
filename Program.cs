@@ -1,18 +1,6 @@
 ﻿using System;
 using System.IO;
 
-/*
- * Get rid of Partial?
- * 
- * Do an Add on BinOp
- *   new BinOp
- *   Left is this
- *   Right is new thing
- *   gen Op
- *   return new BinOp
- * 
- * Is BinOp priority Left + Right, or Left + Right + 1 ?
- */
 namespace Numeric
 {
 	public class Program
@@ -22,7 +10,7 @@ namespace Numeric
 			var config = new Config(args);
 
 			Console.Clear();
-			Console.WriteLine("Numeric v0.9");
+			Console.WriteLine("Numeric v1.0");
 
 			var records = new RecordSet { Target = "target" };
 			var r = new Record();

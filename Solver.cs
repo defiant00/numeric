@@ -10,6 +10,7 @@ namespace Numeric
 		public static Formula Solve(string startFile, RecordSet records)
 		{
 			Records = records;
+			Records.LoadKeys();
 
 			var formula = new Formula();
 			if (!string.IsNullOrEmpty(startFile) && File.Exists(startFile))
