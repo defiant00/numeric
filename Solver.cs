@@ -40,7 +40,7 @@ namespace Numeric
 						complexity = newComplexity;
 						WriteStatus(generation, successfulGeneration, fitness, complexity);
 					}
-					else if (generation % 10000 == 0)
+					else if (generation % 1000 == 0)
 					{
 						WriteStatus(generation, successfulGeneration, fitness, complexity);
 					}

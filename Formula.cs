@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -10,7 +10,7 @@ namespace Numeric
 	{
 		int Complexity { get; }
 		decimal GetValue(Record r);
-		void Mutate();
+		IValue Mutate();
 		IValue Clone();
 	}
 
@@ -25,87 +25,72 @@ namespace Numeric
 
 	public class Formula
 	{
-		private static Random random = new Random();
-
-		public const double ChanceAdd = 0.05;
-		public const double ChanceChange = 0.02;
-		public const double ChanceDelete = 0.01;
-
-		public const double ChanceChangeOp = 0.2;
-		public const double ChanceChangeLeft = 0.5;
-		public const double ChanceChangeType = 0.1;
-
-		public const double NumericChangeMin = -100;
-		public const double NumericChangeMax = 100;
-
-		public const decimal Clamp = 1;     // Clamp at 1 to force the program to use the Multiply Op to multiply.
-
 		public List<Fragment> Parts = new List<Fragment>();
 
 		[JsonIgnore]
 		public int Complexity
 		{
-			get
-			{
-				int c = 0;
-				foreach (var p in Parts) { c += p.Complexity; }
-				return c;
-			}
+			get { return Parts.Sum(p => p.Complexity); }
 		}
 
 		public decimal Apply()
 		{
-			decimal fitness = 0;
-			foreach (var record in Solver.Records.Records)
+			try
 			{
-				decimal val = 0;
-				foreach (var p in Parts)
+				decimal fitness = 0;
+				foreach (var record in Solver.Records.Records)
 				{
-					decimal pv = p.Val.GetValue(record);
-					switch (p.Op)
+					decimal val = 0;
+					foreach (var p in Parts)
 					{
-						case Operator.Add:
-							val += pv;
-							break;
-						case Operator.Subtract:
-							val -= pv;
-							break;
-						case Operator.Multiply:
-							val *= pv;
-							break;
-						case Operator.Divide:
-							if (Math.Abs(pv) < Clamp) { pv = (pv < 0) ? (-Clamp) : Clamp; }
-							val /= pv;
-							break;
+						decimal pv = p.Val.GetValue(record);
+						switch (p.Op)
+						{
+							case Operator.Add:
+								val += pv;
+								break;
+							case Operator.Subtract:
+								val -= pv;
+								break;
+							case Operator.Multiply:
+								val *= pv;
+								break;
+							case Operator.Divide:
+								if (Math.Abs(pv) < 1) { pv = pv < 0 ? -1 : 1; }
+								val /= pv;
+								break;
+						}
 					}
+					fitness += Math.Abs(val - record[Solver.Records.Target]);
 				}
-				fitness += Math.Abs(val - record[Solver.Records.Target]);
+				return fitness;
 			}
-			return fitness;
+			catch { }
+
+			// If something has gone wrong, return the worst (max) fitness value so it is not treated as a solution.
+			return decimal.MaxValue;
 		}
 
 		public void Mutate()
 		{
 			for (int i = Parts.Count - 1; i >= 0; i--)
 			{
-				if (Occurred(ChanceDelete)) { Parts.RemoveAt(i); }
-				else if (Occurred(ChanceChange)) { Parts[i].Mutate(); }
+				if (Helper.Occurred(Helper.ChanceDelete)) { Parts.RemoveAt(i); }
+				else { Parts[i].Mutate(); }
 			}
 
-			if (Occurred(ChanceAdd)) { Parts.Add(new Fragment()); }
-		}
+			if (Helper.Occurred(Helper.ChanceAdd)) { Parts.Add(new Fragment()); }
 
-		public static bool Occurred(double chance)
-		{
-			return random.NextDouble() < chance;
-		}
+			if (Parts.Count > 1 && Helper.Occurred(Helper.ChanceSwap))
+			{
+				int ind1 = Helper.Random(Parts.Count);
+				int ind2 = Helper.Random(Parts.Count - 1);
 
-		public static double Random(double min, double max)
-		{
-			return random.NextDouble() * (max - min) + min;
+				var p = Parts[ind1];
+				Parts.RemoveAt(ind1);
+				Parts.Insert(ind2, p);
+			}
 		}
-
-		public static int Random(int max) { return random.Next(max); }
 
 		public Formula Clone()
 		{
@@ -136,32 +121,17 @@ namespace Numeric
 
 		public static IValue GenValue()
 		{
-			switch (Random(3))
+			switch (Helper.Random(4))
 			{
 				case 0:
 					return new Number();
 				case 1:
-					return new Property();
 				case 2:
+					return new Property();
+				case 3:
 					return new BinOp();
 			}
 			return null;
-		}
-
-		public static string OpString(Operator op)
-		{
-			switch (op)
-			{
-				case Operator.Add:
-					return " + ";
-				case Operator.Subtract:
-					return " - ";
-				case Operator.Multiply:
-					return " * ";
-				case Operator.Divide:
-					return " / ";
-			}
-			return " (unknown op) ";
 		}
 	}
 
@@ -184,13 +154,30 @@ namespace Numeric
 
 		public void Mutate()
 		{
-			if (Formula.Occurred(Formula.ChanceChangeOp)) { GenOp(); }
-			else { Val.Mutate(); }
+			if (Helper.Occurred(Helper.ChanceChangeOp)) { GenOp(); }
+			Val = Val.Mutate();
 		}
 
-		private void GenOp() { Op = (Operator)Formula.Random((int)Operator.Count); }
+		private void GenOp()
+		{
+			Op = (Operator)Helper.Random((int)Operator.Count);
+			EnsureClamp();
+		}
 
-		private void GenVal() { Val = Formula.GenValue(); }
+		private void GenVal()
+		{
+			Val = Formula.GenValue();
+			EnsureClamp();
+		}
+
+		private void EnsureClamp()
+		{
+			var v = Val as Number;
+			if ((Op == Operator.Multiply || Op == Operator.Divide) && v != null && Math.Abs(v.Value) < 1)
+			{
+				v.Value = v.Value < 0 ? -1 : 1;
+			}
+		}
 
 		public Fragment Clone()
 		{
@@ -199,7 +186,7 @@ namespace Numeric
 
 		public override string ToString()
 		{
-			return Formula.OpString(Op) + Val.ToString();
+			return Helper.OpString(Op) + Val.ToString();
 		}
 	}
 
@@ -210,11 +197,19 @@ namespace Numeric
 
 		public decimal Value;
 
+		public Number() { UpdateVal(); }
+
 		public decimal GetValue(Record r) { return Value; }
 
-		public void Mutate()
+		public IValue Mutate()
 		{
-			Value += (decimal)Formula.Random(Formula.NumericChangeMin, Formula.NumericChangeMax);
+			if (Helper.Occurred(Helper.ChanceChange)) { UpdateVal(); }
+			return this;
+		}
+
+		private void UpdateVal()
+		{
+			Value += (decimal)Helper.Random(-Helper.NumericChangeMax, Helper.NumericChangeMax);
 		}
 
 		public IValue Clone() { return new Number { Value = Value }; }
@@ -236,19 +231,23 @@ namespace Numeric
 		private void GenName()
 		{
 			var rs = Solver.Records;
-			var rec = rs.Records[Formula.Random(rs.Records.Count)];
-			int ind = Formula.Random(rec.Values.Count);
+			var rec = rs.Records[Helper.Random(rs.Records.Count)];
+			int ind = Helper.Random(rec.Values.Count - 1);      // Subtract 1 since we have 1 extra value, the target.
 			Name = rec.Values.Keys.ElementAt(ind);
 			if (Name == Solver.Records.Target)
 			{
-				ind = (ind + 1) % rs.Records.Count;
+				ind++;
 				Name = rec.Values.Keys.ElementAt(ind);
 			}
 		}
 
 		public decimal GetValue(Record r) { return r[Name]; }
 
-		public void Mutate() { GenName(); }
+		public IValue Mutate()
+		{
+			if (Helper.Occurred(Helper.ChanceChange)) { GenName(); }
+			return this;
+		}
 
 		public IValue Clone() { return new Property(Name); }
 
@@ -273,7 +272,7 @@ namespace Numeric
 			GenRight();
 		}
 
-		private void GenOp() { Op = (Operator)Formula.Random((int)Operator.Count); }
+		private void GenOp() { Op = (Operator)Helper.Random((int)Operator.Count); }
 
 		private void GenLeft() { Left = Formula.GenValue(); }
 
@@ -292,34 +291,39 @@ namespace Numeric
 				case Operator.Multiply:
 					return left * right;
 				case Operator.Divide:
-					if (Math.Abs(right) < Formula.Clamp) { right = (right < 0) ? (-Formula.Clamp) : Formula.Clamp; }
+					if (Math.Abs(right) < 1) { right = right < 0 ? -1 : 1; }
 					return left / right;
 			}
 			return 0;
 		}
 
-		public void Mutate()
+		public IValue Mutate()
 		{
-			if (Formula.Occurred(Formula.ChanceChangeOp))
+			// Return left or right side.
+			if (Helper.Occurred(Helper.ChanceTakeChild))
+			{
+				return Helper.Occurred(0.5) ? Left : Right;
+			}
+
+			// Op
+			if (Helper.Occurred(Helper.ChanceChangeOp))
 			{
 				GenOp();
 			}
-			else if (Formula.Occurred(Formula.ChanceChangeLeft))
+			// Left
+			if (Helper.Occurred(Helper.ChanceChangeType))
 			{
-				if (Formula.Occurred(Formula.ChanceChangeType))
-				{
-					GenLeft();
-				}
-				else { Left.Mutate(); }
+				GenLeft();
 			}
-			else
+			else { Left = Left.Mutate(); }
+			// Right
+			if (Helper.Occurred(Helper.ChanceChangeType))
 			{
-				if (Formula.Occurred(Formula.ChanceChangeType))
-				{
-					GenRight();
-				}
-				else { Right.Mutate(); }
+				GenRight();
 			}
+			else { Right = Right.Mutate(); }
+
+			return this;
 		}
 
 		public IValue Clone()
@@ -331,7 +335,7 @@ namespace Numeric
 		{
 			var sb = new StringBuilder("(");
 			sb.Append(Left.ToString());
-			sb.Append(Formula.OpString(Op));
+			sb.Append(Helper.OpString(Op));
 			sb.Append(Right.ToString());
 			sb.Append(")");
 			return sb.ToString();

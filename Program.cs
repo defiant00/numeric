@@ -3,14 +3,14 @@ using System.IO;
 
 namespace Numeric
 {
-	class Program
+	public class Program
 	{
-		static void Main(string[] args)
+		public static void Main(string[] args)
 		{
 			var config = new Config(args);
 
 			Console.Clear();
-			Console.WriteLine("Numeric v0.8");
+			Console.WriteLine("Numeric v0.9");
 
 			var records = new RecordSet { Target = "target" };
 			var r = new Record();
@@ -26,12 +26,7 @@ namespace Numeric
 			r["target"] = 125;
 			records.Add(r);
 
-			Formula formula = null;
-			if (config.IsSet("start"))
-			{
-			}
-
-			formula = Solver.Solve(config.IsSet("start") ? config["start"] : null, records);
+			var formula = Solver.Solve(config.IsSet("start") ? config["start"] : null, records);
 
 			File.WriteAllText("formula.json", formula.Serialize());
 			File.WriteAllText("formula.txt", formula.ToString());
