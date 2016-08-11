@@ -63,9 +63,7 @@ namespace Numeric
 		private static void WriteLine(int y, string val)
 		{
 			Console.SetCursorPosition(0, y);
-			Console.Write("".PadLeft(Console.BufferWidth, ' '));
-			Console.SetCursorPosition(0, y);
-			Console.Write(val);
+			Console.Write(val.PadRight(Console.BufferWidth, ' '));
 		}
 	}
 }
