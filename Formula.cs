@@ -231,7 +231,7 @@ namespace Numeric
 		private void GenName()
 		{
 			var rs = Solver.Records;
-			var rec = rs.Records[Helper.Random(rs.Records.Count)];
+			var rec = rs.Records[0];
 			int ind = Helper.Random(rec.Values.Count - 1);      // Subtract 1 since we have 1 extra value, the target.
 			Name = rec.Values.Keys.ElementAt(ind);
 			if (Name == Solver.Records.Target)
