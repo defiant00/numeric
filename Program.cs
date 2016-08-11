@@ -1,6 +1,18 @@
 ﻿using System;
 using System.IO;
 
+/*
+ * Get rid of Partial?
+ * 
+ * Do an Add on BinOp
+ *   new BinOp
+ *   Left is this
+ *   Right is new thing
+ *   gen Op
+ *   return new BinOp
+ * 
+ * Is BinOp priority Left + Right, or Left + Right + 1 ?
+ */
 namespace Numeric
 {
 	public class Program
